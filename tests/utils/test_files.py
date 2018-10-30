@@ -457,22 +457,24 @@ class TestLocalMisc(unittest.TestCase):
 
 class TestGCSMisc(unittest.TestCase):
 
-    def test_matches_uri(self):
-        fs = FileSystem.get_file_system('gs://tooadfasdf/asdfasdf')
-        self.assertEqual(fs, GCSFileSystem)
-
-    def test_bucket_dont_exist(self):
-
-        with self.assertRaises(NotFound):
-            read_str('gs://this-is-not-a-real-bucket/maybe-a-real-key')
-
-
     def setUp(self):
         self.lorem = LOREM
         self.temp_dir = RVConfig.get_tmp_dir()
+        self.valid_bucket_name = 'real-bucket'
+        self.invalid_bucket_name = 'this-is-not-a-real-bucket'
+        self.key_name = 'keyname'
 
     def tearDown(self):
         self.temp_dir.cleanup()
+
+    def test_matches_uri(self):
+        fs = FileSystem.get_file_system(f'gs://{self.invalid_bucket_name}/asdfasdf')
+        self.assertEqual(fs, GCSFileSystem)
+
+    def test_bucket_dont_exist(self):
+        """"""
+        with self.assertRaises(NotFound):
+            read_str('gs://this-is-not-a-real-bucket/maybe-a-real-key')
 
     def test_sync_to_gcs(self):
         local_path = os.path.join(self.temp_dir.name, 'lorem.txt')
@@ -491,16 +493,16 @@ class TestGCSMisc(unittest.TestCase):
 
     def test_file_exists_gcs_true(self):
         """"""
-        gcs_path = 'gs://d81fa190-ef22-413e-8ea9-22bd5416f4df/analytics-ready/pansharpened/DIM_PHR1A_PMS_201810111620245_ORT_3373346101-001.tif'
+        gcs_path = 'gs://{valid_bucket_name}/{key_name}'
         self.assertTrue(file_exists(gcs_path))
 
     def test_file_exists_gcs_false(self):
         """"""
-        gcs_path = 'gs://f22-413e-8ea9-22bd5416f4df/analytics-ready/pansharpened/DIM_PHR1A_PMS_201810111620245_ORT_3373346101-001.tif'
+        gcs_path = f'gs://{self.invalid_bucket_name}/{self.key_name}'
         self.assertFalse(file_exists(gcs_path))
 
     def test_last_modified_gcs(self):
-        gcs_path = 'gs://d81fa190-ef22-413e-8ea9-22bd5416f4df/analytics-ready/pansharpened/DIM_PHR1A_PMS_201810111620245_ORT_3373346101-001.tif'
+        gcs_path = f'gs://{self.valid_bucket_name}/{self.key_name}'
         fs = FileSystem.get_file_system(gcs_path, 'r')
         print(fs)
         mod_date = fs.last_modified(gcs_path)
@@ -508,7 +510,7 @@ class TestGCSMisc(unittest.TestCase):
         self.assertEqual(fs.last_modified(gcs_path), mod_date)
 
     def test_list_paths_gcs(self):
-        gcs_path = 'gs://d81fa190-ef22-413e-8ea9-22bd5416f4df/'
+        gcs_path = f'gs://{self.invalid_bucket_name}/'
         paths = list_paths(gcs_path)
         print('---', paths)
         self.assertTrue(paths)
