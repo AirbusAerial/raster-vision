@@ -106,7 +106,7 @@ class GCSFileSystem(FileSystem):
 
     @staticmethod
     def sync_to_dir(src_dir_uri: str, dest_dir_uri: str,
-                    delete: bool = False) -> None:  # pragma: no cover
+                    delete: bool = False) -> None:
         command = ['gsutil', '-m', 'rsync', src_dir_uri, dest_dir_uri]
         if delete:
             command.append('-d')
@@ -158,7 +158,7 @@ class GCSFileSystem(FileSystem):
         client = GCSFileSystem.get_session()
         bucket = client.get_bucket(parsed_uri.netloc)
         blob = bucket.get_blob(parsed_uri.path[1:])
-        blob.download_to_file(path)
+        blob.download_to_filename(path)
 
     @staticmethod
     def local_path(uri: str, download_dir: str) -> None:
@@ -184,3 +184,6 @@ class GCSFileSystem(FileSystem):
             if ext and os.path.splitext(item)[-1] == ext:
                 continue
             return os.path.join('gs://', parsed_uri.netloc, item.name)
+
+def register_plugin(plugin_registry):
+    plugin_registry.register_filesystem(GCSFileSystem)
