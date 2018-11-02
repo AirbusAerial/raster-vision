@@ -83,7 +83,7 @@ class GCSFileSystem(FileSystem):
         parsed_uri = urlparse(uri)
         client = GCSFileSystem.get_session()
         bucket = client.get_bucket(parsed_uri.netloc)
-        blob = bucket.get_blob(parsed_uri.path[1:])
+        blob = bucket.blob(parsed_uri.path[1:])
         blob.upload_from_string(data)
 
     # NOTE: i wrote these as a fallback is gsutil is not installed
