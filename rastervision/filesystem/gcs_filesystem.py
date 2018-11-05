@@ -150,7 +150,7 @@ class GCSFileSystem(FileSystem):
         client = GCSFileSystem.get_session()
         bucket = client.get_bucket(parsed_uri.netloc)
         blob = bucket.blob(parsed_uri.path[1:])
-        blob.upload_from_file(src_path)
+        blob.upload_from_filename(src_path)
 
     @staticmethod
     def copy_from(uri: str, path: str) -> None:
@@ -158,6 +158,8 @@ class GCSFileSystem(FileSystem):
         client = GCSFileSystem.get_session()
         bucket = client.get_bucket(parsed_uri.netloc)
         blob = bucket.get_blob(parsed_uri.path[1:])
+        print(blob)
+        assert blob, "{uri} does not exist".format(uri=uri)
         blob.download_to_filename(path)
 
     @staticmethod
@@ -181,7 +183,7 @@ class GCSFileSystem(FileSystem):
         bucket = client.get_bucket(parsed_uri.netloc)
         items = bucket.list_blobs(prefix=parsed_uri.path[1:])
         for item in items:
-            if ext and os.path.splitext(item)[-1] == ext:
+            if ext and os.path.splitext(item)[-1] != ext:
                 continue
             return os.path.join('gs://', parsed_uri.netloc, item.name)
 
