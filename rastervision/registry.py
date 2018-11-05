@@ -137,6 +137,7 @@ class Registry:
         self.filesystems = [
             rvfs.HttpFileSystem,
             rvfs.S3FileSystem,
+            rvfs.GCSFileSystem,
             # This is the catch-all case, ensure it's on the bottom of the search stack.
             rvfs.LocalFileSystem
         ]

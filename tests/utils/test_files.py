@@ -11,10 +11,12 @@ from rastervision.utils.files import (
     file_to_str, str_to_file, download_if_needed, upload_or_copy,
     load_json_config, ProtobufParseException, make_dir, get_local_path,
     file_exists, sync_from_dir, sync_to_dir, list_paths)
-from rastervision.filesystem import (NotReadableError, NotWritableError)
+from rastervision.filesystem import (NotReadableError, NotWritableError, GCSFileSystem)
 from rastervision.filesystem.filesystem import FileSystem
 from rastervision.protos.task_pb2 import TaskConfig as TaskConfigMsg
 from rastervision.rv_config import RVConfig
+from google.api_core.exceptions import NotFound
+
 
 LOREM = """ Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
         eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
@@ -76,12 +78,15 @@ class TestMakeDir(unittest.TestCase):
 
         s3_path = 's3://{}/lorem.txt'.format(self.bucket_name)
         upload_or_copy(path, s3_path)
-
         self.assertTrue(file_exists(s3_path))
 
     def test_file_exists_s3_false(self):
         s3_path = 's3://{}/hello.txt'.format(self.bucket_name)
         self.assertFalse(file_exists(s3_path))
+
+    def test_file_exists_gcs_false(self):
+        gcs_path = 'gs://{}/hello.txt'.format(self.bucket_name)
+        self.assertFalse(file_exists(gcs_path))
 
     def test_check_empty(self):
         path = os.path.join(self.temp_dir.name, 'hello', 'hello.txt')
@@ -129,6 +134,13 @@ class TestGetLocalPath(unittest.TestCase):
         path = get_local_path(uri, download_dir)
         self.assertEqual(path, '/download_dir/http/bucket/my/file.txt')
 
+    def test_gcs(self):
+        download_dir = '/download_dir'
+        uri = 'gs://bucket/my/file.txt'
+        path = get_local_path(uri, download_dir)
+        self.assertEqual(path, '/download_dir/gs/bucket/my/file.txt')
+
+
 
 class TestFileToStr(unittest.TestCase):
     """Test file_to_str and str_to_file."""
@@ -141,6 +153,8 @@ class TestFileToStr(unittest.TestCase):
         self.bucket_name = 'mock_bucket'
         self.s3.create_bucket(Bucket=self.bucket_name)
 
+
+
         self.content_str = 'hello'
         self.file_name = 'hello.txt'
         self.s3_path = 's3://{}/{}'.format(self.bucket_name, self.file_name)
@@ -151,6 +165,21 @@ class TestFileToStr(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
         self.mock_s3.stop()
+
+    def test_file_to_str_gcs(self):
+        """"""
+        wrong_path = 'gs://wrongpath/x.txt'
+
+        with self.assertRaises(NotWritableError):
+            str_to_file(self.content_str, wrong_path)
+
+        str_to_file(self.content_str, 'gs://d81fa190-ef22-413e-8ea9-22bd5416f4df/hello.txt')
+        content_str = file_to_str(self.s3_path)
+        self.assertEqual(self.content_str, content_str)
+
+        with self.assertRaises(NotReadableError):
+            file_to_str(wrong_path)
+
 
     def test_file_to_str_local(self):
         str_to_file(self.content_str, self.local_path)
@@ -426,6 +455,65 @@ class TestLocalMisc(unittest.TestCase):
 
         self.assertTrue(isinstance(stamp, datetime.datetime))
 
+class TestGCSMisc(unittest.TestCase):
+
+    def setUp(self):
+        self.lorem = LOREM
+        self.temp_dir = RVConfig.get_tmp_dir()
+        self.valid_bucket_name = 'real-bucket'
+        self.invalid_bucket_name = 'this-is-not-a-real-bucket'
+        self.key_name = 'keyname'
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_matches_uri(self):
+        fs = FileSystem.get_file_system(f'gs://{self.invalid_bucket_name}/asdfasdf')
+        self.assertEqual(fs, GCSFileSystem)
+
+    def test_bucket_dont_exist(self):
+        """"""
+        with self.assertRaises(NotFound):
+            read_str('gs://this-is-not-a-real-bucket/maybe-a-real-key')
+
+    def test_sync_to_gcs(self):
+        local_path = os.path.join(self.temp_dir.name, 'lorem.txt')
+        with open(local_path, 'w') as f:
+            f.write(self.lorem)
+
+        local_two = os.path.join(self.temp_dir.name, 'hello.txt')
+        with open(local_two, 'w') as f:
+            f.write("hello world")
+
+        bucket = 'gs://d81fa190-ef22-413e-8ea9-22bd5416f4df'
+        fs = FileSystem.get_file_system(bucket)
+        print(fs)
+        fs.sync_from_dir(self.temp_dir.name, bucket)
+        fs.sync_to_dir(bucket, self.temp_dir.name)
+
+    def test_file_exists_gcs_true(self):
+        """"""
+        gcs_path = 'gs://{valid_bucket_name}/{key_name}'
+        self.assertTrue(file_exists(gcs_path))
+
+    def test_file_exists_gcs_false(self):
+        """"""
+        gcs_path = f'gs://{self.invalid_bucket_name}/{self.key_name}'
+        self.assertFalse(file_exists(gcs_path))
+
+    def test_last_modified_gcs(self):
+        gcs_path = f'gs://{self.valid_bucket_name}/{self.key_name}'
+        fs = FileSystem.get_file_system(gcs_path, 'r')
+        print(fs)
+        mod_date = fs.last_modified(gcs_path)
+        print(mod_date)
+        self.assertEqual(fs.last_modified(gcs_path), mod_date)
+
+    def test_list_paths_gcs(self):
+        gcs_path = f'gs://{self.invalid_bucket_name}/'
+        paths = list_paths(gcs_path)
+        print('---', paths)
+        self.assertTrue(paths)
 
 class TestHttpMisc(unittest.TestCase):
     def setUp(self):
